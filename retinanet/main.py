@@ -118,7 +118,7 @@ def main(args=None):
 
     retinanet.training = True
 
-    optimizer = optim.Adam(retinanet.parameters(), lr=1e-4)
+    optimizer = optim.Adam(retinanet.parameters(), lr=1e-5)
 
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True,mode="max")
     #scheduler = optim.lr_scheduler.StepLR(optimizer,8)
