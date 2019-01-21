@@ -12,7 +12,6 @@ import numpy as np
 import sys
 from torch.autograd import Variable
 import pdb
-from models.config import cfg
 
 class RegressionModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, feature_size=256):

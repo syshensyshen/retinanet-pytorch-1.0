@@ -4,7 +4,7 @@ import math
 import time
 import torch.utils.model_zoo as model_zoo
 from utils import BasicBlock, Bottleneck, BBoxTransform, ClipBoxes
-from features import PyramidFeaturesEx, PyramidFeatures, ResNetBody
+from features import PyramidFeaturesEx, PyramidFeatures
 from regression import RegressionModel, ClassificationModel
 from anchors import Anchors
 import losses
@@ -127,16 +127,39 @@ model_urls = {
     'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
 }
 
+
 class RetinaNet(nn.Module):
+
     def __init__(self, num_classes, block, layers):
+        self.inplanes = 64
         super(RetinaNet, self).__init__()
-        self.ResNetBody = ResNetBody(num_classes, block, layers)
+        self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+
+        if block == BasicBlock:
+            fpn_sizes = [self.layer2[layers[1]-1].conv2.out_channels, self.layer3[layers[2]-1].conv2.out_channels, self.layer4[layers[3]-1].conv2.out_channels]
+        elif block == Bottleneck:
+            fpn_sizes = [self.layer2[layers[1]-1].conv3.out_channels, self.layer3[layers[2]-1].conv3.out_channels, self.layer4[layers[3]-1].conv3.out_channels]
+
+        self.fpn = PyramidFeaturesEx(fpn_sizes[0], fpn_sizes[1], fpn_sizes[2])
+
         self.regressionModel = RegressionModel(256, num_anchors=15)
         self.classificationModel = ClassificationModel(256, num_anchors=15, num_classes=num_classes)
+
         self.anchors = Anchors()
+
         self.regressBoxes = BBoxTransform()
-        self.clipBoxes = ClipBoxes()        
-        self.focalLoss = losses.FocalLoss()                
+
+        self.clipBoxes = ClipBoxes()
+        
+        self.focalLoss = losses.FocalLoss()
+                
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -152,7 +175,26 @@ class RetinaNet(nn.Module):
 
         self.regressionModel.output.weight.data.fill_(0)
         self.regressionModel.output.bias.data.fill_(0)
-        
+
+        self.freeze_bn()
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.inplanes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
     def freeze_bn(self):
         '''Freeze BatchNorm layers.'''
         for layer in self.modules():
@@ -166,7 +208,17 @@ class RetinaNet(nn.Module):
         else:
             img_batch = inputs
             
-        features = self.ResNetBody(img_batch)
+        x = self.conv1(img_batch)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+
+        features = self.fpn([x2, x3, x4])
 
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
 
@@ -192,97 +244,12 @@ class RetinaNet(nn.Module):
             classification = classification[:, scores_over_thresh, :]
             transformed_anchors = transformed_anchors[:, scores_over_thresh, :]
             scores = scores[:, scores_over_thresh, :]
-            anchors_nms_idx = nms(transformed_anchors[0,:,:], scores[0,:,:].squeeze(1), 0.25)
-            nms_scores, nms_class = classification[0, np.array(anchors_nms_idx.cpu(), dtype=float), :].max(dim=1)
+
+            anchors_nms_idx = nms(torch.cat([transformed_anchors, scores], dim=2)[0, :, :], 0.25)
+
+            nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(dim=1)
 
             return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :]]
-
-class FPN(nn.Module):
-    '''
-    author: syshen
-    '''
-    def __init__(self, classes, pretrain=False, align=False):
-        super(FPN, self).__init__()        
-        self.classes = classes
-        self.rpn_cls_loss = 0
-        self.rpn_bbox_loss = 0
-        self.Backstone = pvaHyper()
-        self.features = self.Backstone
-        self.rpn_regression = rpn_regression()
-        self.proposallayer = ProposalLayer(cfg.FEAT_STRIDE[0], \
-                                           cfg.ANCHOR_SCALES, cfg.ANCHOR_RATIOS)
-        self.proposaltargetlayer = ProposalTargetLayer()
-        self.roi_extraction = ROIAlignLayer()
-        if not align:
-            self.roi_extraction = ROIPoolingLayer()
-        if pretrain:
-            model = torch.load(cfg.TRAIN.pretainmodel)
-            self.Backstone = copy.deepcopy(model.state_dict())
-
-        self.regressionDim = 512
-        self.roi_size = 6
-
-        self.Regression = nn.Sequential(OrderedDict([
-            ('fc1',nn.Linear(self.regressionDim * self.roi_size * self.roi_size, self.regressionDim)),
-            ('fc_relu', nn.LeakyReLU(inplace=True)),
-            ('fc2', nn.Linear(self.regressionDim, self.regressionDim, bias=True)),
-            ('fc2_relu', nn.LeakyReLU(inplace=True))]))
-
-        self.cls_inner = nn.Sequential(OrderedDict([
-            ('fc1',nn.Linear(self.regressionDim, self.n_classes))]))
-
-        self.bbox_pred = nn.Sequential(OrderedDict([
-            ('fc1',nn.Linear(self.regressionDim, self.n_classes * 4))]))
-
-    def forward(self, base_feat, im_data, im_info, gt_boxes, num_boxes, training=False):
-        batch_size = im_data.size(0)
-        im_info = im_info.data
-        gt_boxes = gt_boxes.data
-        num_boxes = num_boxes.data
-        features = self.Backstone(im_data)
-        base_feat, rpn_cls_score, rpn_bbox_pred, rpn_loss_cls, rpn_loss_bbox = \
-            self.rpn_regression.forward(features, im_info, gt_boxes, num_boxes)
-        if training:
-            rois = self.proposallayer.forward(rpn_cls_score.data, \
-                                              rpn_bbox_pred.data, im_info)
-            rois_label, rois_batch, rois_target, bbox_inside_weights = \
-                self.proposaltargetlayer(rois, gt_boxes, num_boxes)
-            bbox_outside_weights = np.array(bbox_inside_weights > 0).astype(np.float32)
-            rois_label = Variable(rois_label.view(-1).long())
-            rois_target = Variable(rois_target.view(-1, rois_target.size(2)))
-            bbox_inside_weights = Variable(bbox_inside_weights.\
-                                           view(-1, bbox_inside_weights.size(2)))
-            bbox_outside_weights = Variable(bbox_outside_weights.\
-                                            view(-1, bbox_outside_weights.size(2)))
-        else:
-            rois_label = None
-            rois_target = None
-            rois_inside_ws = None
-            rois_outside_ws = None
-            rpn_loss_cls = 0
-            rpn_loss_bbox = 0
-
-        rois = Variable(rois)
-         # do roi pooling based on predicted rois
-        roi_feat = self.roi_extraction(base_feat, rois.view(-1, 5), \
-                                          self.roi_size, cfg.TRAIN.spatial_scale)
-        inner_product = self.Regression(roi_feat)
-        bbox_pred = self.bbox_pred(inner_product)
-        cls_inner = self.cls_inner(inner_product)
-        cls_prob = F.softmax(cls_inner, 1)
-
-        loss_cls  = 0
-        loss_bbox = 0
-
-        if training:
-            loss_cls = nn.CrossEntropyLoss()
-            loss_bbox = smooth_l1_loss(bbox_pred, rois_target, bbox_inside_weights, \
-                                       bbox_outside_weights)
-
-        cls_prob = cls_prob.view(batch_size, rois.size(1), -1)
-        bbox_pred = bbox_pred.view(batch_size, rois.size(1), -1)
-
-        return rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_bbox, loss_cls, loss_bbox
 
 def resnet18(num_classes, pretrained=False, **kwargs):
     """Constructs a ResNet-18 model.
