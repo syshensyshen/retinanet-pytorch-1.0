@@ -203,6 +203,9 @@ class RetinaNet(nn.Module):
 
     def forward(self, inputs):
 
+        if isinstance(inputs, list):
+            self.training = True
+
         if self.training:
             img_batch, annotations = inputs
         else:
