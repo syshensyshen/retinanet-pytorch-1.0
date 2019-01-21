@@ -318,6 +318,9 @@ class XML_VOCDataset:
         self.class_list = tuple(class_list)
         self.class_dict = {class_name: i for i, class_name in enumerate(self.class_list)}
 
+    def label_to_name(self, label):
+        return self.class_list[label - 1]
+
     def __getitem__(self, index):
         xml_path = self.xmls[index]
         name = os.path.basename(xml_path)
