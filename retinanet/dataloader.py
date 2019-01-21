@@ -344,6 +344,9 @@ class XML_VOCDataset:
 
     def __len__(self):
         return len(self.xmls)
+    
+    def num_classes(self):
+        return len(self.class_list) + 1
 
     def _get_annotation(self, annotation_file):
         objects = ET.parse(annotation_file).findall("object")
@@ -366,7 +369,7 @@ class XML_VOCDataset:
             annotation[0, 1] = y1
             annotation[0, 2] = x2
             annotation[0, 3] = y2
-            annotation[0, 4] = self.class_dict[class_list]
+            annotation[0, 4] = self.class_dict[self.class_list]
             annotations      = np.append(annotations, annotation, axis=0)
 
         return annotations
@@ -378,7 +381,7 @@ class XML_VOCDataset:
         
     def image_aspect_ratio(self, image_index):
         image = cv2.imread(self.imgs[image_index])
-        height, width = image[:2]
+        height, width = image.shape[:2]
         return float(width) / float(height)
 
 def collater(data):
@@ -511,7 +514,6 @@ class UnNormalizer(object):
             t.mul_(s).add_(m)
         return tensor
 
-
 class AspectRatioBasedSampler(Sampler):
 
     def __init__(self, data_source, batch_size, drop_last):
@@ -538,7 +540,6 @@ class AspectRatioBasedSampler(Sampler):
 
         # divide into groups, one group = one batch
         return [[order[x % len(order)] for x in range(i, i + self.batch_size)] for i in range(0, len(order), self.batch_size)]
-
 
 class VOCDataset:
 
