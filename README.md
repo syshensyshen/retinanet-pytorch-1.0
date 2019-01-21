@@ -3,7 +3,8 @@
 
 step1: 安装
 git clone https://github.com/syshensyshen/retinanet-pytorch-1.0.git
-retinanet-pytorch-1.0/retinanet/lib/
+
+'cd retinanet-pytorch-1.0/retinanet/lib/'
 python setup.py build develop
 
 step2: 训练
