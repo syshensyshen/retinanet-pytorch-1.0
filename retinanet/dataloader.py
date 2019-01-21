@@ -298,7 +298,7 @@ class CSVDataset(Dataset):
         return self.labels[label]
 
     def num_classes(self):
-        return max(self.classes.values()) + 1
+        return max(self.classes.values())
 
     def image_aspect_ratio(self, image_index):
         image = Image.open(self.image_names[image_index])
@@ -317,9 +317,10 @@ class XML_VOCDataset:
         self.xmls = glob(os.path.join(xml_path, "*.xml"))
         self.class_list = tuple(class_list)
         self.class_dict = {class_name: i for i, class_name in enumerate(self.class_list)}
+        #print('self.class_list[0]: ', self.class_list[0])
 
     def label_to_name(self, label):
-        return self.class_list[label - 1]
+        return self.class_list[label]
 
     def __getitem__(self, index):
         xml_path = self.xmls[index]
@@ -350,7 +351,7 @@ class XML_VOCDataset:
         return len(self.xmls)
     
     def num_classes(self):
-        return len(self.class_list) + 1
+        return len(self.class_list)
 
     def _get_annotation(self, annotation_file):
         objects = ET.parse(annotation_file).findall("object")
@@ -364,10 +365,10 @@ class XML_VOCDataset:
                  continue
             
             # VOC dataset format follows Matlab, in which indexes start from 0
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
-            x2 = float(bbox.find('xmax').text) - 1
-            y2 = float(bbox.find('ymax').text) - 1
+            x1 = float(bbox.find('xmin').text) #- 1
+            y1 = float(bbox.find('ymin').text) #- 1
+            x2 = float(bbox.find('xmax').text) #- 1
+            y2 = float(bbox.find('ymax').text) #- 1
             if (x2-x1) < 1 or (y2-y1) < 1:
                 continue
             annotation  = np.zeros((1, 5))
@@ -376,7 +377,7 @@ class XML_VOCDataset:
             annotation[0, 2] = x2
             annotation[0, 3] = y2
             annotation[0, 3] = y2
-            annotation[0, 4] = self.class_dict[class_name] + 1
+            annotation[0, 4] = self.class_dict[class_name]
             annotations      = np.append(annotations, annotation, axis=0)
             #print(annotations)
         return annotations
@@ -389,7 +390,10 @@ class XML_VOCDataset:
         return img
         
     def image_aspect_ratio(self, image_index):
-        image = Image.open(self.imgs[image_index])
+        xml_path = self.xmls[image_index]
+        name = os.path.basename(xml_path)
+        img_path = os.path.join(self.img_root, name.replace('.xml', '.jpg'))
+        image = Image.open(img_path)
         return float(image.width) / float(image.height)
 
 def collater(data):

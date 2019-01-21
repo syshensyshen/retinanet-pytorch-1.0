@@ -22,7 +22,7 @@ from glob import glob
 print('CUDA available: {}'.format(torch.cuda.is_available()))
 
 # threshold for class score
-threshold = 0.5
+threshold = 0.0
 results_file = open("./submit/larger%s.csv"%str(threshold),"w+")
 
 if not os.path.exists("./submit/"):

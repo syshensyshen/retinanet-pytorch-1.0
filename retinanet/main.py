@@ -118,7 +118,7 @@ def main(args=None):
 
     retinanet.training = True
 
-    optimizer = optim.Adam(retinanet.parameters(), lr=1e-5)
+    optimizer = optim.Adam(retinanet.parameters(), lr=1e-4)
 
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True,mode="max")
     #scheduler = optim.lr_scheduler.StepLR(optimizer,8)
@@ -168,7 +168,7 @@ def main(args=None):
                 loss_hist.append(float(loss))
 
                 epoch_loss.append(float(loss))
-                if iter_num % 100 == 0:
+                if iter_num % 50 == 0:
                     print('Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(epoch_num, iter_num, float(classification_loss), float(regression_loss), np.mean(loss_hist)))
                     log_file.write('Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f} \n'.format(epoch_num, iter_num, float(classification_loss), float(regression_loss), np.mean(loss_hist)))
                 del classification_loss
@@ -178,20 +178,20 @@ def main(args=None):
                 continue
 
         if parser.dataset == 'coco':
-
+        
             print('Evaluating dataset')
-
+        
             coco_eval.evaluate_coco(dataset_val, retinanet)
-
+        
         elif parser.dataset == 'csv' and parser.csv_val is not None:
-
+        
             print('Evaluating dataset')
-
+        
             mAP = csv_eval.evaluate(dataset_val, retinanet)
         elif parser.dataset == 'voc' and parser.csv_val is not None:
-
+        
             print('Evaluating dataset')
-
+        
             mAP = voc_eval.evaluate(dataset_val, retinanet)
         
         try:

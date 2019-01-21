@@ -173,10 +173,11 @@ def evaluate(
 
     all_detections     = _get_detections(generator, retinanet, score_threshold=score_threshold, max_detections=max_detections, save_path=save_path)
     all_annotations    = _get_annotations(generator)
-
+    
     average_precisions = {}
 
     for label in range(generator.num_classes()):
+        #print('generator.num_classes(): ', generator.num_classes())
         false_positives = np.zeros((0,))
         true_positives  = np.zeros((0,))
         scores          = np.zeros((0,))
@@ -232,7 +233,8 @@ def evaluate(
     
     print('\nmAP:')
     for label in range(generator.num_classes()):
-        label_name = generator.label_to_name(label)
+        label_name = generator.label_to_name(label)        
+        #print('label_name: ', label_name)        
         print('{}: {}'.format(label_name, average_precisions[label][0]))
     
     return average_precisions
