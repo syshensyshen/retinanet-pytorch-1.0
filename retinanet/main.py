@@ -26,6 +26,7 @@ from torch.utils.data import Dataset, DataLoader
 
 import coco_eval
 import csv_eval
+import voc_eval
 
 #assert torch.__version__.split('.')[1] == '4'
 
@@ -82,7 +83,7 @@ def main(args=None):
             dataset_val = None
             print('No validation annotations provided.')
         else:
-            dataset_val = XML_VOCDataset(img_path=parser.voc_train+'JPEGImages/', xml_path=parser.voc_train + 'Annotations/', class_list=class_list, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+            dataset_val = XML_VOCDataset(img_path=parser.voc_val+'JPEGImages/', xml_path=parser.voc_val + 'Annotations/', class_list=class_list, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
 
     else:
         raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
@@ -140,9 +141,11 @@ def main(args=None):
         epoch_loss = []
         
         for iter_num, data in enumerate(dataloader_train):
+            #print('iter num is: ', iter_num)
             try:
                 #print(csv_eval.evaluate(dataset_val[:20], retinanet)[0])
                 #print(type(csv_eval.evaluate(dataset_val, retinanet)))
+                #print('iter num is: ', iter_num % 10 == 0)
                 optimizer.zero_grad()
 
                 classification_loss, regression_loss = retinanet([data['img'].cuda().float(), data['annot']])
@@ -151,6 +154,7 @@ def main(args=None):
                 regression_loss = regression_loss.mean()
 
                 loss = classification_loss + regression_loss
+                #print(loss)
                 
                 if bool(loss == 0):
                     continue
@@ -184,6 +188,11 @@ def main(args=None):
             print('Evaluating dataset')
 
             mAP = csv_eval.evaluate(dataset_val, retinanet)
+        elif parser.dataset == 'voc' and parser.csv_val is not None:
+
+            print('Evaluating dataset')
+
+            mAP = voc_eval.evaluate(dataset_val, retinanet)
         
         try:
             is_best_map = mAP[0][0] > best_map

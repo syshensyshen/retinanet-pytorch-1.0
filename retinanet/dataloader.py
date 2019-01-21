@@ -323,7 +323,7 @@ class XML_VOCDataset:
         name = os.path.basename(xml_path)
         img_path = os.path.join(self.img_root, name.replace('.xml', '.jpg'))
         annot = self._get_annotation(xml_path)
-        img = self._read_image(img_path)
+        img = self.get_image(index)
         sample = {'img': img, 'annot': annot,'filename':img_path}
         if self.transform:
             sample = self.transform(sample)
@@ -333,9 +333,10 @@ class XML_VOCDataset:
         xml_path = self.xmls[index]
         name = os.path.basename(xml_path)
         img_path = os.path.join(self.img_root, name.replace('.xml', '.jpg'))
+        
         image = self._read_image(img_path)
-        if self.transform:
-            image, _ = self.transform(image)
+        #if self.transform:
+        #    image, _ = self.transform(image)
         return image
 
     def get_annotation(self, index):
@@ -353,10 +354,12 @@ class XML_VOCDataset:
         annotations = np.zeros((0, 5))
 
         for object in objects:
-            class_name = object.find('name').text.upper().strip()
+            class_name = object.find('name').text.strip()
+            #print(class_name, self.class_list)
             bbox = object.find('bndbox')
             if class_name not in self.class_list:
                  continue
+            
             # VOC dataset format follows Matlab, in which indexes start from 0
             x1 = float(bbox.find('xmin').text) - 1
             y1 = float(bbox.find('ymin').text) - 1
@@ -369,20 +372,22 @@ class XML_VOCDataset:
             annotation[0, 1] = y1
             annotation[0, 2] = x2
             annotation[0, 3] = y2
-            annotation[0, 4] = self.class_dict[self.class_list]
+            annotation[0, 3] = y2
+            annotation[0, 4] = self.class_dict[class_name] + 1
             annotations      = np.append(annotations, annotation, axis=0)
-
+            #print(annotations)
         return annotations
 
     def _read_image(self, image_file):
-        image = cv2.imread(str(image_file))
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        return image
+        img = skimage.io.imread(image_file)
+
+        if len(img.shape) == 2:
+            img = skimage.color.gray2rgb(img)
+        return img
         
     def image_aspect_ratio(self, image_index):
-        image = cv2.imread(self.imgs[image_index])
-        height, width = image.shape[:2]
-        return float(width) / float(height)
+        image = Image.open(self.imgs[image_index])
+        return float(image.width) / float(image.height)
 
 def collater(data):
 
@@ -455,7 +460,6 @@ class Resizer(object):
 
         return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
 
-
 class Augmenter(object):
     """Convert ndarrays in sample to Tensors."""
 
@@ -478,7 +482,6 @@ class Augmenter(object):
             sample = {'img': image, 'annot': annots}
 
         return sample
-
 
 class Normalizer(object):
 
