@@ -22,7 +22,7 @@ from glob import glob
 print('CUDA available: {}'.format(torch.cuda.is_available()))
 
 # threshold for class score
-threshold = 0.2
+threshold = 0.5
 results_file = open("./submit/larger%s.csv"%str(threshold),"w+")
 
 if not os.path.exists("./submit/"):
@@ -44,7 +44,7 @@ def demo(image_lists):
         Normalizer(),
         Resizer()
         ])
-    for filename in image_lists:
+    for ix, filename in enumerate(image_lists):
         image = skimage.io.imread(filename)
         sampler = {"img":image.astype(np.float32)/255.0,"annot":np.empty(shape=(5,5))}
         image_tf = transforms(sampler)
@@ -64,7 +64,7 @@ def demo(image_lists):
             for i,box in enumerate(bboxes):
                  cv2.rectangle(image,(int(box[1]),int(box[0])),(int(box[3]),int(box[2])),color=(0,0,255),thickness=2 )
                  results_file.write(filename.split("/")[-1] +","+ str(int(box[1])) + " " + str(int(box[0])) +  " " + str(int(box[3])) + " " +str(int(box[2])) + "\n")
-            print("Predicting image: %s "%filename)
+            print(ix, "Predicting image: %s "%filename)
             cv2.imwrite("./outputs/%s"%filename.split("/")[-1],image)
 if __name__ == "__main__":
     root = "./data/images/test/"

@@ -350,8 +350,8 @@ class ResNet(nn.Module):
 
         self.fpn = PyramidFeaturesEx(fpn_sizes[0], fpn_sizes[1], fpn_sizes[2])
 
-        self.regressionModel = RegressionModel(256)
-        self.classificationModel = ClassificationModel(256, num_classes=num_classes)
+        self.regressionModel = RegressionModel(256, num_anchors=15)
+        self.classificationModel = ClassificationModel(256, num_anchors=15, num_classes=num_classes)
 
         self.anchors = Anchors()
 

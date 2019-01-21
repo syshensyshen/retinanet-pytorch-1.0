@@ -19,7 +19,9 @@ import torchvision
 import model
 from anchors import Anchors
 import losses
-from dataloader import CocoDataset, CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, UnNormalizer, Normalizer
+from dataloader import CocoDataset, CSVDataset, XML_VOCDataset
+from dataloader import collater, Resizer, AspectRatioBasedSampler
+from dataloader import Augmenter, UnNormalizer, Normalizer
 from torch.utils.data import Dataset, DataLoader
 
 import coco_eval
@@ -39,12 +41,13 @@ def main(args=None):
     parser.add_argument('--csv_train', default = "./data/train_only.csv",help='Path to file containing training annotations (see readme)')
     parser.add_argument('--csv_classes', default = "./data/classes.csv",help='Path to file containing class list (see readme)')
     parser.add_argument('--csv_val', default = "./data/train_only.csv",help='Path to file containing validation annotations (optional, see readme)')
-
+    parser.add_argument('--voc_train', default = "./data/voc_train",help='Path to containing images and annAnnotations')
+    parser.add_argument('--voc_val', default = "./data/bov_train",help='Path to containing images and annAnnotations')
     parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=101)
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=40)
 
     parser = parser.parse_args(args)
-
+    class_list = ['rebar']
     # Create the data loaders
     if parser.dataset == 'coco':
 
@@ -70,6 +73,16 @@ def main(args=None):
             print('No validation annotations provided.')
         else:
             dataset_val = CSVDataset(train_file=parser.csv_val, class_list=parser.csv_classes, transform=transforms.Compose([Normalizer(), Resizer()]))
+    elif parser.dataset == 'voc':
+        if parser.voc_train is None:
+            raise ValueError('Must provide --voc_train when training on PASCAL VOC,')
+        dataset_train = XML_VOCDataset(img_path=parser.voc_train+'JPEGImages/', xml_path=parser.voc_train + 'Annotations/', class_list=class_list, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+
+        if parser.voc_val is None:
+            dataset_val = None
+            print('No validation annotations provided.')
+        else:
+            dataset_val = XML_VOCDataset(img_path=parser.voc_train+'JPEGImages/', xml_path=parser.voc_train + 'Annotations/', class_list=class_list, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
 
     else:
         raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
@@ -104,11 +117,11 @@ def main(args=None):
 
     retinanet.training = True
 
-    optimizer = optim.Adam(retinanet.parameters(), lr=1e-5)
+    optimizer = optim.Adam(retinanet.parameters(), lr=1e-4)
 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True,mode="max")
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True,mode="max")
     #scheduler = optim.lr_scheduler.StepLR(optimizer,8)
-    loss_hist = collections.deque(maxlen=500)
+    loss_hist = collections.deque(maxlen=1024)
 
     retinanet.train()
     retinanet.module.freeze_bn()
