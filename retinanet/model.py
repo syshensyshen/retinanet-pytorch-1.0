@@ -208,6 +208,7 @@ class RetinaNet(nn.Module):
 
         if self.training:
             img_batch, annotations = inputs
+            #print(annotations)
         else:
             img_batch = inputs
             

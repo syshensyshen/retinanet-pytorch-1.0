@@ -92,6 +92,7 @@ def _get_detections(dataset, retinanet, score_threshold=0.05, max_detections=100
 
             # correct boxes for image scale
             boxes /= scale
+            #print(scale)
 
             # select indices which have a score above the threshold
             indices = np.where(scores > score_threshold)[0]
@@ -173,6 +174,7 @@ def evaluate(
 
     all_detections     = _get_detections(generator, retinanet, score_threshold=score_threshold, max_detections=max_detections, save_path=save_path)
     all_annotations    = _get_annotations(generator)
+    #print(all_detections.shape, all_annotations.shape)
     
     average_precisions = {}
 
@@ -188,6 +190,9 @@ def evaluate(
             annotations          = all_annotations[i][label]
             num_annotations     += annotations.shape[0]
             detected_annotations = []
+            #print(i)
+            #print(detections.shape)
+            #print(annotations.shape)
 
             for d in detections:
                 scores = np.append(scores, d[4])
@@ -233,8 +238,10 @@ def evaluate(
     
     print('\nmAP:')
     for label in range(generator.num_classes()):
-        label_name = generator.label_to_name(label)        
-        #print('label_name: ', label_name)        
+        #print('generator.num_classes() is: ', generator.num_classes())
+        #print('label index is: ', label)              
+        label_name = generator.label_to_name(label)              
+        #print('label_name: ', label_name)              
         print('{}: {}'.format(label_name, average_precisions[label][0]))
     
     return average_precisions

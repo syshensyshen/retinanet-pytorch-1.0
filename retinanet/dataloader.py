@@ -317,7 +317,7 @@ class XML_VOCDataset:
         self.xmls = glob(os.path.join(xml_path, "*.xml"))
         self.class_list = tuple(class_list)
         self.class_dict = {class_name: i for i, class_name in enumerate(self.class_list)}
-        #print('self.class_list[0]: ', self.class_list[0])
+        #print('self.class_list: ', self.class_list)
 
     def label_to_name(self, label):
         return self.class_list[label]
@@ -336,10 +336,10 @@ class XML_VOCDataset:
     def get_image(self, index):
         xml_path = self.xmls[index]
         name = os.path.basename(xml_path)
-        img_path = os.path.join(self.img_root, name.replace('.xml', '.jpg'))
-        
-        image = self._read_image(img_path)
-
+        img_path = os.path.join(self.img_root, name.replace('.xml', '.jpg'))        
+        image = skimage.io.imread(img_path)
+        if len(image.shape) == 2:
+            image = skimage.color.gray2rgb(image)
         return image.astype(np.float32)/255.0
 
     def get_annotation(self, index):
@@ -350,7 +350,7 @@ class XML_VOCDataset:
         return len(self.xmls)
     
     def num_classes(self):
-        return len(self.class_list) + 1
+        return len(self.class_list)
 
     def _get_annotation(self, annotation_file):
         objects = ET.parse(annotation_file).findall("object")
@@ -380,13 +380,7 @@ class XML_VOCDataset:
             annotations      = np.append(annotations, annotation, axis=0)
             #print(annotations)
         return annotations
-
-    def _read_image(self, image_file):
-        image = skimage.io.imread(image_file)
-
-        if len(image.shape) == 2:
-            image = skimage.color.gray2rgb(image)
-        return image
+        
         
     def image_aspect_ratio(self, image_index):
         xml_path = self.xmls[image_index]

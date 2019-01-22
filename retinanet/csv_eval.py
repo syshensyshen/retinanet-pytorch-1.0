@@ -172,6 +172,7 @@ def evaluate(
 
     all_detections     = _get_detections(generator, retinanet, score_threshold=score_threshold, max_detections=max_detections, save_path=save_path)
     all_annotations    = _get_annotations(generator)
+    #print(len(all_detections), len(all_annotations))
 
     average_precisions = {}
 
@@ -186,6 +187,9 @@ def evaluate(
             annotations          = all_annotations[i][label]
             num_annotations     += annotations.shape[0]
             detected_annotations = []
+            #print(i)
+            #print(detections.shape)
+            #print(annotations.shape)
 
             for d in detections:
                 scores = np.append(scores, d[4])

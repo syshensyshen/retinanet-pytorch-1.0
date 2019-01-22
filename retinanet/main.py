@@ -27,8 +27,8 @@ from torch.utils.data import Dataset, DataLoader
 import coco_eval
 import csv_eval
 import voc_eval
-class_list = ['rebar']
-#class_list = ['HM', 'TT']
+#class_list = ['rebar']
+class_list = ['HM', 'TT']
 #assert torch.__version__.split('.')[1] == '4'
 
 print('CUDA available: {}'.format(torch.cuda.is_available()))
@@ -83,7 +83,7 @@ def main(args=None):
             dataset_val = None
             print('No validation annotations provided.')
         else:
-            dataset_val = XML_VOCDataset(img_path=parser.voc_val+'JPEGImages/', xml_path=parser.voc_val + 'Annotations/', class_list=class_list, transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+            dataset_val = XML_VOCDataset(img_path=parser.voc_val+'JPEGImages/', xml_path=parser.voc_val + 'Annotations/', class_list=class_list, transform=transforms.Compose([Normalizer(), Resizer()]))
 
     else:
         raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
@@ -188,7 +188,7 @@ def main(args=None):
             print('Evaluating dataset')
         
             mAP = csv_eval.evaluate(dataset_val, retinanet)
-        elif parser.dataset == 'voc' and parser.csv_val is not None:
+        elif parser.dataset == 'voc' and parser.voc_val is not None:
         
             print('Evaluating dataset')
         
