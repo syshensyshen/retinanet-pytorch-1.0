@@ -27,7 +27,8 @@ from torch.utils.data import Dataset, DataLoader
 import coco_eval
 import csv_eval
 import voc_eval
-
+class_list = ['rebar']
+#class_list = ['HM', 'TT']
 #assert torch.__version__.split('.')[1] == '4'
 
 print('CUDA available: {}'.format(torch.cuda.is_available()))
@@ -48,7 +49,6 @@ def main(args=None):
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=40)
 
     parser = parser.parse_args(args)
-    class_list = ['rebar']
     # Create the data loaders
     if parser.dataset == 'coco':
 

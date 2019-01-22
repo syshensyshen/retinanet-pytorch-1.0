@@ -298,7 +298,7 @@ class CSVDataset(Dataset):
         return self.labels[label]
 
     def num_classes(self):
-        return max(self.classes.values())
+        return max(self.classes.values()) + 1
 
     def image_aspect_ratio(self, image_index):
         image = Image.open(self.image_names[image_index])
@@ -339,9 +339,8 @@ class XML_VOCDataset:
         img_path = os.path.join(self.img_root, name.replace('.xml', '.jpg'))
         
         image = self._read_image(img_path)
-        #if self.transform:
-        #    image, _ = self.transform(image)
-        return image
+
+        return image.astype(np.float32)/255.0
 
     def get_annotation(self, index):
         xml_path = self.xmls[index]
@@ -351,7 +350,7 @@ class XML_VOCDataset:
         return len(self.xmls)
     
     def num_classes(self):
-        return len(self.class_list)
+        return len(self.class_list) + 1
 
     def _get_annotation(self, annotation_file):
         objects = ET.parse(annotation_file).findall("object")
@@ -383,11 +382,11 @@ class XML_VOCDataset:
         return annotations
 
     def _read_image(self, image_file):
-        img = skimage.io.imread(image_file)
+        image = skimage.io.imread(image_file)
 
-        if len(img.shape) == 2:
-            img = skimage.color.gray2rgb(img)
-        return img
+        if len(image.shape) == 2:
+            image = skimage.color.gray2rgb(image)
+        return image
         
     def image_aspect_ratio(self, image_index):
         xml_path = self.xmls[image_index]
