@@ -26,5 +26,6 @@ reference code:
 [pytorch-retinanet](https://github.com/yhenon/pytorch-retinanet.git)
 [pytorch-retinanet](https://github.com/kuangliu/pytorch-retinanet.git)
 [pfaster-rcnn.pytorch](https://github.com/jwyang/faster-rcnn.pytorch.git)
-[detect_steel_bar] (https://github.com/spytensor/detect_steel_bar.git)
+[detect_steel_bar](https://github.com/spytensor/detect_steel_bar.git)
+[pva-pytorch](https://github.com/syshensyshen/pva-pytorch.git)
 
