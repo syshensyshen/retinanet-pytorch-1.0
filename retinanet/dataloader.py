@@ -25,6 +25,39 @@ import pathlib
 import xml.etree.ElementTree as ET
 import cv2
 
+SCALES = [scale for scale in range(416, 1920, 32)]
+
+def get_target_size(target_size, im, multiple, max_size):
+    im_shape = im.shape
+    im_size_min = np.min(im_shape[0:2])
+    im_size_max = np.max(im_shape[0:2])
+    if len(im_shape) > 2:
+        channles = im_shape[2]
+    else:
+        channles = 1
+    im_scale = float(target_size) / float(im_size_min)
+    # Prevent the biggest axis from being more than MAX_SIZE
+    if np.round(im_scale * im_size_max) > max_size:
+        im_scale = float(max_size) / float(im_size_max)
+    width = np.floor(im.shape[1] * im_scale / multiple) * multiple 
+    height = np.floor(im.shape[0] * im_scale / multiple) * multiple 
+    return int(height), int(width), channles
+
+def make_scale_anno(annot, im_scale_x, im_scale_y):
+    annots = []
+    for anno in annot:
+        annotation  = np.zeros((1, 5))
+        annotation[0,0] = anno[0, 0] * im_scale_x # x1
+        annotation[0,0] = anno[0, 1] * im_scale_y # y1
+        annotation[0,0] = anno[0, 2] * im_scale_x # x2
+        annotation[0,0] = anno[0, 3] * im_scale_y # y2
+        annotation[0,0] = anno[0, 4]
+        annots.append(annotation)
+
+    return annots
+        
+
+
 class CocoDataset(Dataset):
     """Coco dataset."""
 
@@ -327,7 +360,7 @@ class XML_VOCDataset:
         name = os.path.basename(xml_path)
         img_path = os.path.join(self.img_root, name.replace('.xml', '.jpg'))
         annot = self._get_annotation(xml_path)
-        img = self.get_image(index)
+        img = self.get_image(index)            
         sample = {'img': img, 'annot': annot,'filename':img_path}
         if self.transform:
             sample = self.transform(sample)
@@ -360,9 +393,8 @@ class XML_VOCDataset:
             class_name = object.find('name').text.strip()
             #print(class_name, self.class_list)
             bbox = object.find('bndbox')
-            if class_name not in self.class_list:
-                 continue
-            
+            if not class_name in self.class_list:
+                 continue            
             # VOC dataset format follows Matlab, in which indexes start from 0
             x1 = float(bbox.find('xmin').text) #- 1
             y1 = float(bbox.find('ymin').text) #- 1
@@ -374,7 +406,6 @@ class XML_VOCDataset:
             annotation[0, 0] = x1
             annotation[0, 1] = y1
             annotation[0, 2] = x2
-            annotation[0, 3] = y2
             annotation[0, 3] = y2
             annotation[0, 4] = self.class_dict[class_name]
             annotations      = np.append(annotations, annotation, axis=0)
@@ -425,6 +456,42 @@ def collater(data):
     padded_imgs = padded_imgs.permute(0, 3, 1, 2)
 
     return {'img': padded_imgs, 'annot': annot_padded, 'scale': scales}
+
+class ResizerMultiScale(object):
+    def __call__(self, sample, min_side=608, max_side=1920):
+        image, annots = sample['img'], sample['annot']
+
+        rows, cols, cns = image.shape
+
+        smallest_side = min(rows, cols)
+
+        scales = [scale for scale in range(min_side, max_side, 32)]
+
+        real_min_side = scales[random.randint(0, len(scales)-1)]
+
+        # rescale the image so the smallest side is min_side
+        scale = real_min_side / smallest_side
+
+        # check if the largest side is now greater than max_side, which can happen
+        # when images have a large aspect ratio
+        largest_side = max(rows, cols)
+
+        if largest_side * scale > max_side:
+            scale = max_side / largest_side
+
+        # resize the image with the computed scale
+        image = skimage.transform.resize(image, (int(round(rows*scale)), int(round((cols*scale)))), mode='constant')
+        rows, cols, cns = image.shape
+
+        pad_w = 32 - rows%32
+        pad_h = 32 - cols%32
+
+        new_image = np.zeros((rows + pad_w, cols + pad_h, cns)).astype(np.float32)
+        new_image[:rows, :cols, :] = image.astype(np.float32)
+
+        annots[:, :4] *= scale
+
+        return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
 
 class Resizer(object):
     """Convert ndarrays in sample to Tensors."""

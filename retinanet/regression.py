@@ -90,12 +90,12 @@ class ClassificationModel(nn.Module):
 
         out = self.output(out)
         out = self.output_act(out)
+        #out = F.softmax(out, dim=1)
 
         # out is B x C x W x H, with C = n_classes + n_anchors
         out1 = out.permute(0, 2, 3, 1)
-
         batch_size, width, height, channels = out1.shape
-
         out2 = out1.view(batch_size, width, height, self.num_anchors, self.num_classes)
+        #out2 = F.softmax(out2, dim=1)
 
         return out2.contiguous().view(x.shape[0], -1, self.num_classes)

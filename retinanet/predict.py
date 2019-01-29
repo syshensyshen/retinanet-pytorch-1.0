@@ -51,7 +51,7 @@ def demo(image_lists):
         scale = image_tf["scale"]
         new_shape = image_tf['img'].shape
         x = torch.autograd.Variable(image_tf['img'].unsqueeze(0).transpose(1,3), volatile=True)
-        with torch.no_grad():
+        with torch.no_grad():            
             scores,_,bboxes = retinanet(x.cuda().float())
             bboxes /= scale
             scores = scores.cpu().data.numpy()

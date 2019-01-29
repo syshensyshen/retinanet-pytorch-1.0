@@ -19,17 +19,21 @@ import torchvision
 import model
 from anchors import Anchors
 import losses
-from dataloader import CocoDataset, CSVDataset, collater, Resizer, AspectRatioBasedSampler, Augmenter, UnNormalizer, Normalizer
+from dataloader import CocoDataset, CSVDataset, XML_VOCDataset
+from dataloader import collater, Resizer, ResizerMultiScale, AspectRatioBasedSampler
+from dataloader import Augmenter, UnNormalizer, Normalizer
 from torch.utils.data import Dataset, DataLoader
 
 import coco_eval
 import csv_eval
-
-assert torch.__version__.split('.')[1] == '4'
+import voc_eval
+class_list = ['rebar']
+#class_list = ['HM', 'TT']
+#assert torch.__version__.split('.')[1] == '4'
 
 print('CUDA available: {}'.format(torch.cuda.is_available()))
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 def main(args=None):
 
     parser     = argparse.ArgumentParser(description='Simple training script for training a RetinaNet network.')
@@ -39,12 +43,12 @@ def main(args=None):
     parser.add_argument('--csv_train', default = "./data/train_only.csv",help='Path to file containing training annotations (see readme)')
     parser.add_argument('--csv_classes', default = "./data/classes.csv",help='Path to file containing class list (see readme)')
     parser.add_argument('--csv_val', default = "./data/train_only.csv",help='Path to file containing validation annotations (optional, see readme)')
-
+    parser.add_argument('--voc_train', default = "./data/voc_train",help='Path to containing images and annAnnotations')
+    parser.add_argument('--voc_val', default = "./data/bov_train",help='Path to containing images and annAnnotations')
     parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=101)
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=40)
 
     parser = parser.parse_args(args)
-
     # Create the data loaders
     if parser.dataset == 'coco':
 
@@ -70,16 +74,26 @@ def main(args=None):
             print('No validation annotations provided.')
         else:
             dataset_val = CSVDataset(train_file=parser.csv_val, class_list=parser.csv_classes, transform=transforms.Compose([Normalizer(), Resizer()]))
+    elif parser.dataset == 'voc':
+        if parser.voc_train is None:
+            raise ValueError('Must provide --voc_train when training on PASCAL VOC,')
+        dataset_train = XML_VOCDataset(img_path=parser.voc_train+'JPEGImages/', xml_path=parser.voc_train + 'Annotations/', class_list=class_list, transform=transforms.Compose([Normalizer(), Augmenter(), ResizerMultiScale()]))
+
+        if parser.voc_val is None:
+            dataset_val = None
+            print('No validation annotations provided.')
+        else:
+            dataset_val = XML_VOCDataset(img_path=parser.voc_val+'JPEGImages/', xml_path=parser.voc_val + 'Annotations/', class_list=class_list, transform=transforms.Compose([Normalizer(), Resizer()]))
 
     else:
         raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
 
     sampler = AspectRatioBasedSampler(dataset_train, batch_size=1, drop_last=False)
-    dataloader_train = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
+    dataloader_train = DataLoader(dataset_train, num_workers=2, collate_fn=collater, batch_sampler=sampler)
 
     if dataset_val is not None:
         sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
-        dataloader_val = DataLoader(dataset_val, num_workers=3, collate_fn=collater, batch_sampler=sampler_val)
+        dataloader_val = DataLoader(dataset_val, num_workers=2, collate_fn=collater, batch_sampler=sampler_val)
 
     # Create the model
     if parser.depth == 18:
@@ -104,19 +118,16 @@ def main(args=None):
 
     retinanet.training = True
 
-    optimizer = optim.Adam(retinanet.parameters(), lr=1e-5)
+    optimizer = optim.Adam(retinanet.parameters(), lr=1e-4)
 
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, verbose=True,mode="max")
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, verbose=True,mode="max")
     #scheduler = optim.lr_scheduler.StepLR(optimizer,8)
-    loss_hist = collections.deque(maxlen=500)
+    loss_hist = collections.deque(maxlen=1024)
 
     retinanet.train()
     retinanet.module.freeze_bn()
     if not os.path.exists("./logs"):
         os.mkdir("./logs")
-    if not os.path.exists('best_models'): 
-        os.makedirs('best_models')
-    
     log_file = open("./logs/log.txt","w")
     print('Num training images: {}'.format(len(dataset_train)))
     best_map = 0
@@ -130,9 +141,11 @@ def main(args=None):
         epoch_loss = []
         
         for iter_num, data in enumerate(dataloader_train):
+            #print('iter num is: ', iter_num)
             try:
                 #print(csv_eval.evaluate(dataset_val[:20], retinanet)[0])
                 #print(type(csv_eval.evaluate(dataset_val, retinanet)))
+                #print('iter num is: ', iter_num % 10 == 0)
                 optimizer.zero_grad()
 
                 classification_loss, regression_loss = retinanet([data['img'].cuda().float(), data['annot']])
@@ -141,6 +154,7 @@ def main(args=None):
                 regression_loss = regression_loss.mean()
 
                 loss = classification_loss + regression_loss
+                #print(loss)
                 
                 if bool(loss == 0):
                     continue
@@ -164,16 +178,21 @@ def main(args=None):
                 continue
 
         if parser.dataset == 'coco':
-
+        
             print('Evaluating dataset')
-
+        
             coco_eval.evaluate_coco(dataset_val, retinanet)
-
+        
         elif parser.dataset == 'csv' and parser.csv_val is not None:
-
+        
             print('Evaluating dataset')
-
+        
             mAP = csv_eval.evaluate(dataset_val, retinanet)
+        elif parser.dataset == 'voc' and parser.voc_val is not None:
+        
+            print('Evaluating dataset')
+        
+            mAP = voc_eval.evaluate(dataset_val, retinanet)
         
         try:
             is_best_map = mAP[0][0] > best_map

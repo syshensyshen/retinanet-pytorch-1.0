@@ -211,6 +211,7 @@ class RetinaNet(nn.Module):
             #print(annotations)
         else:
             img_batch = inputs
+        #print(img_batch.shape)
             
         x = self.conv1(img_batch)
         x = self.bn1(x)
@@ -236,21 +237,17 @@ class RetinaNet(nn.Module):
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, img_batch)
 
-            scores = torch.max(classification, dim=2, keepdim=True)[0]
+            scores = torch.max(classification, dim=2, keepdim=True)[0]            
 
             scores_over_thresh = (scores>0.05)[0, :, 0]
 
             if scores_over_thresh.sum() == 0:
-                # no boxes to NMS, just return
                 return [torch.zeros([1]).cuda(0), torch.zeros([1]).cuda(0), torch.zeros([1, 4]).cuda(0)]
-                #return [torch.zeros(0), torch.zeros(0), torch.zeros(0, 4)]
 
             classification = classification[:, scores_over_thresh, :]
             transformed_anchors = transformed_anchors[:, scores_over_thresh, :]
-            scores = scores[:, scores_over_thresh, :]
-
+            scores = scores[:, scores_over_thresh, :]            
             anchors_nms_idx = nms(transformed_anchors[0,:,:], scores[0,:,:].squeeze(1), 0.25)
-
             nms_scores, nms_class = classification[0, anchors_nms_idx, :].max(dim=1)
 
             return [nms_scores, nms_class, transformed_anchors[0, anchors_nms_idx, :]]
