@@ -4,7 +4,7 @@ import math
 import time
 import torch.utils.model_zoo as model_zoo
 from utils import BasicBlock, Bottleneck, BBoxTransform, ClipBoxes
-from features import PyramidFeaturesEx, PyramidFeatures
+from features import PyramidFeaturesEx, PyramidFeatures, DilatedPyramidFeaturesEx
 from regression import RegressionModel, ClassificationModel
 from anchors import Anchors
 import losses
@@ -147,7 +147,7 @@ class RetinaNet(nn.Module):
         elif block == Bottleneck:
             fpn_sizes = [self.layer2[layers[1]-1].conv3.out_channels, self.layer3[layers[2]-1].conv3.out_channels, self.layer4[layers[3]-1].conv3.out_channels]
 
-        self.fpn = PyramidFeaturesEx(fpn_sizes[0], fpn_sizes[1], fpn_sizes[2])
+        self.fpn = DilatedPyramidFeaturesEx(fpn_sizes[0], fpn_sizes[1], fpn_sizes[2])
 
         self.regressionModel = RegressionModel(256, num_anchors=15)
         self.classificationModel = ClassificationModel(256, num_anchors=15, num_classes=num_classes)
